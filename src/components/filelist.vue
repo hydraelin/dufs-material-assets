@@ -117,7 +117,7 @@
         </v-tooltip>
 
         <v-tooltip
-            v-if="filelist.auth"
+            v-if="filelist.auth && showLogoutButton"
             :text="filelist.user ? t('titleLogout', [filelist.user]) : t('titleLogin')"
         >
             <template v-slot:activator="{ props }">
@@ -719,6 +719,7 @@ import { getExt, getIconFromExt, getColorFromExt, formatSize, formatTimestamp, p
 
 const { $dialog, $toast } = getCurrentInstance().appContext.config.globalProperties;
 const { t } = useI18n();
+const showLogoutButton = ref(false);
 
 /**
  * @param {RequestInfo | URL} input
@@ -774,8 +775,8 @@ const readmeSkeleton = ref(false);
 const previewSkeleton = ref(false);
 const editSkeleton = ref(false);
 const search = ref('');
-const sortColumn = ref('');
-const sortOrderDesc = ref(false);
+const sortColumn = ref('mtime');
+const sortOrderDesc = ref(true);
 
 /** @type {import('vue').Ref<DufsData>} */
 const filelist = ref({
