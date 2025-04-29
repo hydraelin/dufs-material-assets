@@ -1,65 +1,64 @@
 import { createApp } from 'vue';
-import { marked } from 'marked';
-import { markedHighlight } from 'marked-highlight';
-import prism from 'prismjs';
-
-import 'prismjs/themes/prism.css';
-import 'prismjs/components/prism-c.js';
-import 'prismjs/components/prism-cpp.js';
-import 'prismjs/components/prism-csharp.js';
-import 'prismjs/components/prism-go.js';
-import 'prismjs/components/prism-go-module.js';
-import 'prismjs/components/prism-java.js';
-import 'prismjs/components/prism-javascript.js';
-import 'prismjs/components/prism-jsx.js';
-import 'prismjs/components/prism-typescript.js';
-import 'prismjs/components/prism-tsx.js';
-import 'prismjs/components/prism-php.js';
-import 'prismjs/components/prism-php-extras.js';
-import 'prismjs/components/prism-python.js';
-import 'prismjs/components/prism-markup.js';
-import 'prismjs/components/prism-css.js';
-import 'prismjs/components/prism-css-extras.js';
-import 'prismjs/components/prism-lua.js';
-import 'prismjs/components/prism-rust.js';
-import 'prismjs/components/prism-kotlin.js';
-import 'prismjs/components/prism-docker.js';
-import 'prismjs/components/prism-powershell.js';
-import 'prismjs/components/prism-json.js';
-import 'prismjs/components/prism-batch.js';
-import 'prismjs/components/prism-shell-session.js';
-import 'prismjs/components/prism-bash.js';
-import 'prismjs/components/prism-markup-templating.js';
-import 'prismjs/components/prism-yaml.js';
-import 'prismjs/plugins/line-numbers/prism-line-numbers.js';
-import 'prismjs/plugins/line-numbers/prism-line-numbers.css';
-
 import router from './router.js';
 import vuetify from './vuetify.js';
 import i18n from './i18n.js';
 import app from './app.vue';
-import renderer from './marked-renderer.js';
 import dialog from './plugins/dialog.js';
 import snackbar from './plugins/snackbar.js';
 
-import './markdown-style.css';
+// 移除与代码高亮和 Markdown 渲染相关的导入
+// import { marked } from 'marked';
+// import { markedHighlight } from 'marked-highlight';
+// import prism from 'prismjs';
+// import 'prismjs/themes/prism.css';
+// import 'prismjs/components/prism-c.js';
+// import 'prismjs/components/prism-cpp.js';
+// import 'prismjs/components/prism-csharp.js';
+// import 'prismjs/components/prism-go.js';
+// import 'prismjs/components/prism-go-module.js';
+// import 'prismjs/components/prism-java.js';
+// import 'prismjs/components/prism-javascript.js';
+// import 'prismjs/components/prism-jsx.js';
+// import 'prismjs/components/prism-typescript.js';
+// import 'prismjs/components/prism-tsx.js';
+// import 'prismjs/components/prism-php.js';
+// import 'prismjs/components/prism-php-extras.js';
+// import 'prismjs/components/prism-python.js';
+// import 'prismjs/components/prism-markup.js';
+// import 'prismjs/components/prism-css.js';
+// import 'prismjs/components/prism-css-extras.js';
+// import 'prismjs/components/prism-lua.js';
+// import 'prismjs/components/prism-rust.js';
+// import 'prismjs/components/prism-kotlin.js';
+// import 'prismjs/components/prism-docker.js';
+// import 'prismjs/components/prism-powershell.js';
+// import 'prismjs/components/prism-json.js';
+// import 'prismjs/components/prism-batch.js';
+// import 'prismjs/components/prism-shell-session.js';
+// import 'prismjs/components/prism-bash.js';
+// import 'prismjs/components/prism-markup-templating.js';
+// import 'prismjs/components/prism-yaml.js';
+// import 'prismjs/plugins/line-numbers/prism-line-numbers.js';
+// import 'prismjs/plugins/line-numbers/prism-line-numbers.css';
 
-marked.use(markedHighlight({
-    highlight(code, lang) {
-        if (prism.languages[lang]) {
-            // How to use line-number plugin with webpack · Issue #1487 · PrismJS/prism
-            // https://github.com/PrismJS/prism/issues/1487
-            setTimeout(prism.highlightAll);
-            return prism.highlight(code, prism.languages[lang], lang);
-        } else {
-            return code;
-        }
-    },
-}));
-marked.use({
-    useNewRenderer: true,
-    renderer,
-});
+// 移除 Markdown 样式导入
+// import './markdown-style.css';
+
+// 移除 marked 相关配置
+// marked.use(markedHighlight({
+//     highlight(code, lang) {
+//         if (prism.languages[lang]) {
+//             setTimeout(prism.highlightAll);
+//             return prism.highlight(code, prism.languages[lang], lang);
+//         } else {
+//             return code;
+//         }
+//     },
+// }));
+// marked.use({
+//     useNewRenderer: true,
+//     renderer,
+// });
 
 createApp(app)
     .use(router)
