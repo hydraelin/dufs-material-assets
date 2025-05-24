@@ -1,6 +1,8 @@
 <template>
     <Teleport to="#app-bar-append">
         <v-menu
+            activator="#upload-btn"
+            v-model="uploadlistMenu"
             open-delay="0"
             open-on-focus
             open-on-hover
@@ -13,10 +15,14 @@
                 >
                     <template v-slot:activator="{ props: tooltip }">
                         <v-btn
+                            id="upload-btn"
                             v-bind="mergeProps(menu, tooltip)"
                             variant="text"
                             icon="$mdiUpload"
-                            @click="uploadFilesClick"
+                            @mousedown="uploadFilesDown"
+                            @mouseup="uploadFilesUp"
+                            @touchstart="e => e.preventDefault() || uploadFilesDown()"
+                            @touchend="e => e.preventDefault() || uploadFilesUp()"
                         >
                             <v-badge
                                 v-if="uploadlist.filter(e => !e.uploaded && !e.aborted && !e.fail).length"
@@ -40,7 +46,7 @@
                 v-show="uploadlist.length"
                 lines="two"
                 item-props
-                width="480"
+                width="min(480px, calc(100vw - 24px))"
                 max-height="540"
             >
                 <v-list-item v-for="e, i in uploadlist" v-ripple>
@@ -257,7 +263,10 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="p in filelistPathsSorted" v-ripple>
+                    <tr
+                        v-for="p in filelistPathsSorted.slice((filelistPage - 1) * filelistPageSize, filelistPage * filelistPageSize)"
+                        v-ripple
+                    >
                         <td>
                             <div
                                 class="d-flex align-center"
@@ -293,7 +302,7 @@
                         <td class="text-no-wrap text-right">{{ p.is_dir ? t('headerSizeSubdirectoryItems', [p.size], p.size) : formatSize(p.size) }}</td>
                         <td class="text-no-wrap text-right">
                             <v-tooltip
-                                v-if="(new Set(['jpg', 'jpeg', 'gif', 'png', 'webp', 'avif', 'svg'])).has(p.ext)"
+                                v-if="previewableImageExts.has(p.ext)"
                                 :text="t('actionViewImage')"
                             >
                                 <template v-slot:activator="{ props }">
@@ -307,7 +316,7 @@
                                 </template>
                             </v-tooltip>
                             <v-tooltip
-                                v-if="(new Set(['mp4', 'webm', 'ogv'])).has(p.ext)"
+                                v-if="previewableVideoExts.has(p.ext)"
                                 :text="t('actionPlayVideo')"
                             >
                                 <template v-slot:activator="{ props }">
@@ -321,7 +330,7 @@
                                 </template>
                             </v-tooltip>
                             <v-tooltip
-                                v-if="(new Set(['mp3', 'm4a', 'ogg', 'weba', 'oga', 'flac', 'opus'])).has(p.ext)"
+                                v-if="previewableAudioExts.has(p.ext)"
                                 :text="t('actionPlayAudio')"
                             >
                                 <template v-slot:activator="{ props }">
@@ -350,8 +359,8 @@
                             </v-tooltip>
                             <v-tooltip
                                 v-if="
-                                    (new Set(['readme', 'license'])).has(p.filename.toLowerCase())
-                                    || (new Set(['txt', 'log', 'conf', 'ini', 'md', 'gitignore'])).has(p.ext)
+                                    previewableTextFilenames.has(p.filename.toLowerCase())
+                                    || previewableTextExts.has(p.ext)
                                     || codeLanguageTable[p.ext]
                                 "
                                 :text="t('actionViewFile')"
@@ -372,8 +381,8 @@
                                     && filelist.allow_delete
                                     && p.size < 1048576
                                     && (
-                                        (new Set(['readme', 'license'])).has(p.filename.toLowerCase())
-                                        || (new Set(['txt', 'log', 'conf', 'ini', 'md', 'gitignore'])).has(p.ext)
+                                        previewableTextFilenames.has(p.filename.toLowerCase())
+                                        || previewableTextExts.has(p.ext)
                                         || codeLanguageTable[p.ext]
                                     )
                                 "
@@ -427,7 +436,7 @@
                                         variant="plain"
                                         icon="$mdiFolderDownload"
                                         density="comfortable"
-                                        :href="currentPath + p.name + '/?zip'"
+                                        :href="currentPath + encodeURIComponent(p.name) + '/?zip'"
                                         :download="p.filename + '.zip'"
                                     ></v-btn>
                                 </template>
@@ -442,7 +451,7 @@
                                         variant="plain"
                                         icon="$mdiDownload"
                                         density="comfortable"
-                                        :href="currentPath + p.name"
+                                        :href="currentPath + encodeURIComponent(p.name)"
                                         :download="p.filename"
                                     ></v-btn>
                                 </template>
@@ -455,19 +464,46 @@
     </v-card>
 
     <v-card v-if="readmeItem" class="my-4">
-        <v-card-title class="text-subtitle-1">
-            <v-icon icon="$mdiBookOpenVariant" size="small" class="mr-2"></v-icon>{{ readmeItem.filename }}
+        <v-card-title class="d-flex align-center text-subtitle-1">
+            <v-icon icon="$mdiBookOpenVariant" size="small" class="mr-2"></v-icon>
+            <span class="flex-grow-1">{{ readmeItem.filename }}</span>
+            <v-btn
+                variant="text"
+                density="comfortable"
+                :icon="readmeExpand ? '$mdiChevronUp' : '$mdiChevronDown'"
+                @click="readmeExpand = !readmeExpand"
+            ></v-btn>
         </v-card-title>
-        <v-skeleton-loader
-            :loading="readmeSkeleton"
-            type="article"
-        >
-            <v-card-text v-if="readmeRichMode" v-html="readmeContent" class="markdown-body w-100"></v-card-text>
-            <v-card-text v-else>
-                <pre style="white-space:pre-wrap;word-break:keep-all"><code>{{ readmeContent }}</code></pre>
-            </v-card-text>
-        </v-skeleton-loader>
+        <v-expand-transition>
+            <v-skeleton-loader
+                v-show="readmeExpand"
+                :loading="readmeSkeleton"
+                type="article"
+            >
+                <v-divider></v-divider>
+                <v-card-text v-if="readmeRichMode" v-html="readmeContent" class="markdown-body w-100"></v-card-text>
+                <v-card-text v-else>
+                    <pre style="white-space:pre-wrap;word-break:keep-all"><code>{{ readmeContent }}</code></pre>
+                </v-card-text>
+            </v-skeleton-loader>
+        </v-expand-transition>
     </v-card>
+
+    <v-pagination
+        v-if="filelistPageCount > 1"
+        class="my-4"
+        active-color="primary"
+        prev-icon="$mdiChevronLeft"
+        next-icon="$mdiChevronRight"
+        :density="display.xs.value ? 'compact' : (display.width.value < 768 ? 'comfortable' : 'default')"
+        :total-visible="display.xs.value ? 5 : (display.smAndDown.value ? 7 : 9)"
+        v-model="filelistPage"
+        :length="filelistPageCount"
+        @mousedown="filelistPageDown"
+        @mouseup="filelistPageUp"
+        @touchstart="e => e.preventDefault() || filelistPageDown()"
+        @touchend="e => e.preventDefault() || filelistPageUp()"
+    ></v-pagination>
 
     <v-dialog
         v-model="previewDialog"
@@ -597,10 +633,18 @@
                         @click="updateAudioTags((previewItem = previewAudioNext(previewItem)))"
                     ></v-btn>
                     <v-btn
-                        :icon="previewAudioRepeat ? '$mdiRepeat' : '$mdiRepeatOff'"
+                        :icon="{
+                            once: '$mdiRepeatOnce',
+                            on: '$mdiRepeat',
+                            off: '$mdiRepeatOff',
+                        }[previewAudioRepeat]"
                         variant="plain"
                         class="mx-1"
-                        @click="previewAudioRepeat = !previewAudioRepeat"
+                        @click="previewAudioRepeat = {
+                            once: 'on',
+                            on: 'off',
+                            off: 'once',
+                        }[previewAudioRepeat]"
                     ></v-btn>
                 </div>
             </v-card-text>
@@ -683,7 +727,7 @@
                     <textarea
                         v-model="editContent"
                         :wrap="editWrap ? 'soft' : 'off'"
-                        style="font-family:ui-monospace,'Cascadia Mono','Segoe UI Mono','Liberation Mono',Menlo,Monaco,Consolas,sans-serif;width:100%;height:calc(100vh - 48px - 52px - 16px - 34px);resize:none;border:none;outline:none;font-size:1rem"
+                        style="font-family:ui-monospace,'Cascadia Mono','JetBrains Mono','Segoe UI Mono','Liberation Mono',Menlo,Monaco,Consolas,sans-serif;width:100%;height:calc(100vh - 48px - 52px - 16px - 34px);resize:none;border:none;outline:none;font-size:1rem"
                     ></textarea>
                 </v-card-text>
             </v-skeleton-loader>
@@ -696,7 +740,7 @@
         class="d-none"
         :src="filelistPathsAudio.includes(previewItem) ? previewItem.fullpath : undefined"
         :autoplay="!previewAudioPaused"
-        :loop="previewAudioRepeat"
+        :loop="previewAudioRepeat === 'on'"
         @error="$toast.error(t('toastFailedLoadAudio'))"
         @play="previewAudioPaused = false"
         @pause="previewAudioPaused = true"
@@ -707,7 +751,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick, getCurrentInstance, mergeProps, reactive } from 'vue';
+import { ref, computed, onMounted, watch, nextTick, getCurrentInstance, mergeProps, reactive, shallowRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDisplay } from 'vuetify';
 import { marked } from 'marked';
@@ -715,7 +759,24 @@ import prism from 'prismjs';
 import { useI18n } from 'petite-vue-i18n';
 import * as jsmediatags from '../mami-chan/index.js';
 import Uploader from '../uploader.js';
-import { getExt, getIconFromExt, getColorFromExt, formatSize, formatTimestamp, pathPrefix, removePrefix, removeSuffix, debounce, codeLanguageTable } from '../common.js';
+import {
+    getExt,
+    getIconFromExt,
+    getColorFromExt,
+    formatSize,
+    formatTimestamp,
+    pathPrefix,
+    removePrefix,
+    removeSuffix,
+    debounce,
+    codeLanguageTable,
+    previewableImageExts,
+    previewableVideoExts,
+    previewableAudioExts,
+    previewableTextExts,
+    previewableTextFilenames,
+    readmeFilenames,
+} from '../common.js';
 
 const { $dialog, $toast } = getCurrentInstance().appContext.config.globalProperties;
 const { t } = useI18n();
@@ -797,8 +858,17 @@ const filelistPathsSorted = computed(() => {
             return filelist.value.paths;
     }
 });
-
-const readmeFilenames = new Set(['readme', 'readme.txt', 'readme.md']);
+const filelistPageSize = window.__CUSTOM_PAGE_SIZE__ || Infinity;
+const filelistPageCount = computed(() => Math.ceil(filelistPathsSorted.value.length / filelistPageSize));
+const filelistPage = ref(1);
+let filelistPageTimer = null;
+const filelistPageDown = () => filelistPageTimer = setTimeout(() => filelistPageTimer = null, 500);
+const filelistPageUp = async () => {
+    if (filelistPageTimer === null) {
+        const page = parseInt(await $dialog.promises.prompt(t('dialogPageSkipLabel', [1, filelistPageCount.value]), t('titlePageSkip')));
+        if (!isNaN(page) && 1 <= page && page <= filelistPageCount.value) filelistPage.value = page;
+    };
+};
 
 const readmeItem = computed(() => filelist.value.paths.find(e => !e.is_dir && readmeFilenames.has(e.filename.toLowerCase())));
 
@@ -820,14 +890,15 @@ const additionalPathItem = e => {
     e.is_dir = e.path_type === 'Dir' || e.path_type === 'SymlinkDir';
     e.is_symlink = e.path_type === 'SymlinkDir' || e.path_type === 'SymlinkFile';
     e.ext = getExt(e.name).toLowerCase();
-    e.fullpath = currentPath.value + e.name;
+    e.fullpath = currentPath.value + encodeURIComponent(e.name);
     e.filename = e.name.split('/').pop();
 };
 
 const updateFilelist = async () => {
     document.title = (window.__CUSTOM_DOCUMENT_TITLE__ || 'Index of ${path} - dufs').replaceAll('${path}', removeSuffix(currentPathWithoutPrefix.value, '/') || '/');
+    let items;
     if (window.__INITIAL_DATA__) {
-        filelist.value = window.__INITIAL_DATA__;
+        items = window.__INITIAL_DATA__;
         delete window.__INITIAL_DATA__;
     } else {
         const sp = new URLSearchParams([
@@ -839,13 +910,15 @@ const updateFilelist = async () => {
         // Don't show skeleton if loading time is less than 150ms
         const st = setTimeout(() => filelistSkeleton.value = true, 150);
         // console.time('Load filelist');
-        filelist.value = await dufsfetch(`${currentPath.value}?${sp}`).then(r => r.json());
+        items = await dufsfetch(`${currentPath.value}?${sp}`).then(r => r.json());
         // console.timeEnd('Load filelist');
         filelistSkeleton.value = false;
         clearTimeout(st);
     }
-    filelist.value.paths.forEach(additionalPathItem);
+    items.paths.forEach(additionalPathItem);
+    filelist.value = items;
 };
+const updateFilelistResetPage = () => updateFilelist().then(() => filelistPage.value = 1);
 
 const breadcrumb = computed(() => {
     const r = [{title: '/', href: pathPrefix}];
@@ -869,6 +942,7 @@ const editWrap = ref(true);
 const editItem = ref({});
 const editContent = ref('');
 
+const readmeExpand = ref(true);
 const readmeRichMode = ref(false);
 const readmeContent = ref('');
 
@@ -957,8 +1031,8 @@ const saveEditContent = async () => {
 onMounted(updateFilelist);
 onMounted(updateReadme);
 
-watch(currentPath, updateFilelist);
-watch(search, debounce(updateFilelist, 250));
+watch(currentPath, updateFilelistResetPage);
+watch(search, debounce(updateFilelistResetPage, 250));
 watch(readmeItem, updateReadme);
 
 /**
@@ -976,12 +1050,23 @@ const deleteFile = async e => {
 const moveFile = async e => {
     const path = await $dialog.promises.prompt(t('dialogMoveLabel'), t('actionMove'), {value: e.name});
     if (!path) return;
+    const pathParts = removePrefix(path.startsWith('/') ? (pathPrefix + removePrefix(path, '/')) : (currentPath.value + path), '/').split('/');
+    const pathResolvedParts = [];
+    for (const part of pathParts) {
+        if (part === '.') {
+            continue;
+        } else if (part === '..') {
+            pathResolvedParts.pop();
+        } else {
+            pathResolvedParts.push(part);
+        }
+    }
     await dufsfetch(
         e.fullpath,
         {
             method: 'MOVE',
             headers: {
-                'Destination': encodeURI(currentPath.value + path),
+                'Destination': '/' + pathResolvedParts.map(encodeURIComponent).join('/'),
             },
         }
     );
@@ -993,7 +1078,6 @@ const moveFile = async e => {
  * @type {import('vue').Ref<Uploader[]>}
  */
 const uploadlist = ref([]);
-
 const uploadFilesSelectResolve = ref(() => {});
 const uploadFilesClick = async () => {
     /** @type {File[]} */
@@ -1007,7 +1091,7 @@ const uploadFilesClick = async () => {
         .map(file => {
             const cp = currentPath.value;
             return new Uploader(
-                cp + file.name,
+                cp + encodeURIComponent(file.name),
                 file,
                 () => currentPath.value === cp && updateFilelist(),
             );
@@ -1053,7 +1137,7 @@ document.body.addEventListener('drop', async e => {
         .map(([path, file]) => {
             const cp = currentPath.value;
             return new Uploader(
-                cp + path,
+                cp + encodeURIComponent(path),
                 file,
                 () => currentPath.value === cp && updateFilelist(),
             );
@@ -1064,6 +1148,18 @@ document.body.addEventListener('drop', async e => {
             r.upload();
         });
 });
+const uploadlistMenu = ref(false);
+let uploadlistMenuTimer = null;
+const uploadFilesDown = () => {
+    uploadlistMenuTimer = setTimeout(() => {
+        uploadlistMenu.value = true;
+        uploadlistMenuTimer = null;
+    }, 500);
+};
+const uploadFilesUp = () => {
+    clearTimeout(uploadlistMenuTimer);
+    if (uploadlistMenuTimer !== null) uploadFilesClick();
+};
 
 const createFolder = async () => {
     const path = await $dialog.promises.prompt(t('dialogCreateFolderLabel'), t('titleCreateFolder'));
@@ -1075,7 +1171,8 @@ const createFolder = async () => {
 
 const previewAudioPaused = ref(true);
 const previewAudioShuffle = ref(false);
-const previewAudioRepeat = ref(false);
+/** @type {import('vue').Ref<'once' | 'on' | 'off'>} */
+const previewAudioRepeat = ref('once');
 const previewAudioCurrent = ref(0);
 const previewAudioDuration = ref(0);
 const previewAudioCover = ref(null);
@@ -1091,7 +1188,7 @@ const formatAudioTime = t => {
 watch(previewDialog, () => {
     previewAudio.value.pause();
 });
-const filelistPathsAudio = computed(() => filelistPathsSorted.value.filter(e => (new Set(['mp3', 'm4a', 'ogg', 'weba', 'oga', 'flac', 'opus'])).has(e.ext)));
+const filelistPathsAudio = computed(() => filelistPathsSorted.value.filter(e => previewableAudioExts.has(e.ext)));
 const previewAudioPrev = e => {
     const index = filelistPathsAudio.value.indexOf(e);
     return filelistPathsAudio.value[index === 0 ? (filelistPathsAudio.value.length - 1) : (index - 1)];
@@ -1101,7 +1198,7 @@ const previewAudioNext = e => {
     return filelistPathsAudio.value[index === filelistPathsAudio.value.length - 1 ? 0 : (index + 1)];
 };
 const previewAudioEnded = async () => {
-    if (filelistPathsAudio.value.length === 1) {
+    if (filelistPathsAudio.value.length === 1 || previewAudioRepeat.value === 'once') {
         previewAudioPaused.value = true;
         previewAudio.value.currentTime = 0;
     } else {
